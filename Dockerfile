@@ -6,4 +6,4 @@ RUN apt-get update && apt-get install -y wget gnupg
 RUN playwright install chromium
 RUN playwright install-deps
 COPY bot.py .
-CMD ["python", "bot.py"]
+CMD ["python", "-u", "bot.py"]
