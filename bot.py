@@ -1,197 +1,230 @@
-# bot.py - Instagram Username Extractor Bot
-import asyncio
-import re
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from playwright.async_api import async_playwright
-from bs4 import BeautifulSoup
-import logging
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Your bot token
-TOKEN = "8688619118:AAGpi-bKUVidIt1R_ss6vlRhOw6GX5s5uEI"
-
-# Simple cache
-cache = {}
-
-async def extract_username(url):
-    """Extract username from Instagram URL"""
+Need more help? Contact @admin
+        """
+        await update.message.reply_text(help_text, parse_mode='Markdown')
     
-    # Check cache
-    if url in cache:
-        return cache[url]
-    
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+    async def stats(self, update: Update, context):
+        """Handle /stats command"""
+        cache_stats = cache.get_stats()
+        heal_stats = SelfHealingExtractor.successful_patterns
         
-        try:
-            await page.goto(url, wait_until='domcontentloaded', timeout=30000)
-            await page.wait_for_timeout(2000)
-            html = await page.content()
-            
-            username = None
-            
-            # Method 1: Embedded JSON
-            json_match = re.search(r'"owner":\s*{\s*"username":\s*"([^"]+)"', html)
-            if json_match:
-                username = json_match.group(1)
-            
-            # Method 2: Meta tag
-            if not username:
-                soup = BeautifulSoup(html, 'lxml')
-                meta = soup.find('meta', property='og:title')
-                if meta and meta.get('content'):
-                    match = re.search(r'^([a-zA-Z0-9._]+)\s+on\s+Instagram', meta['content'])
-                    if match:
-                        username = match.group(1)
-            
-            # Method 3: Anchor tag
-            if not username:
-                soup = BeautifulSoup(html, 'lxml')
-                anchor = soup.find('a', href=re.compile(r'^/([a-zA-Z0-9._]+)/?$'))
-                if anchor:
-                    match = re.search(r'^/([a-zA-Z0-9._]+)/?$', anchor['href'])
-                    if match:
-                        username = match.group(1)
-            
-            # Method 4: Popup text
-            if not username:
-                popup_match = re.search(r'Never\s+miss\s+a\s+post\s+from\s+([a-zA-Z0-9._]+)', html)
-                if popup_match:
-                    username = popup_match.group(1)
-            
-            # Cache result
-            if username:
-                cache[url] = username
-                if len(cache) > 100:
-                    cache.clear()
-            
-            return username
-            
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            return None
-        finally:
-            await browser.close()
+        stats_text = f"""
+📊 **Bot Statistics - Enterprise Edition**
 
-async def start(update: Update, context):
-    await update.message.reply_text(
-        "🎯 **Instagram Username Extractor Bot**\n\n"
-        "Send me Instagram reel or post links and I'll extract the uploader's username!\n\n"
-        "**Examples:**\n"
-        "• https://www.instagram.com/reel/abc123/\n"
-        "• https://www.instagram.com/p/xyz789/\n\n"
-        "**Features:**\n"
-        "✅ Single or multiple links\n"
-        "✅ Fast extraction\n"
-        "✅ Works with public accounts\n\n"
-        "Just paste your links and I'll do the rest!"
-    )
+**Status:** 🟢 Online
+**Version:** 4.0 (Universal Link Parser)
 
-async def help_command(update: Update, context):
-    await update.message.reply_text(
-        "📚 **How to use:**\n\n"
-        "1. Copy Instagram reel/post URLs\n"
-        "2. Paste them here (one per line)\n"
-        "3. I'll extract the usernames\n\n"
-        "**Example input:**\n"
-        "https://www.instagram.com/reel/DABC123/\n"
-        "https://www.instagram.com/p/XYZ789/\n\n"
-        "**Output format:**\n"
-        "Link | Username\n\n"
-        "**Commands:**\n"
-        "/start - Welcome message\n"
-        "/help - This help\n"
-        "/stats - Bot statistics"
-    )
+**Performance:**
+{cache_stats}
 
-async def stats(update: Update, context):
-    await update.message.reply_text(
-        f"📊 **Bot Statistics**\n\n"
-        f"✅ Status: Online\n"
-        f"📦 Cache size: {len(cache)} URLs\n"
-        f"⚡ Response time: Instant\n"
-        f"👥 Ready for team use\n\n"
-        f"Bot is working perfectly!"
-    )
+**Successful extractions by method:**
+• 📦 JSON: {heal_stats.get('json', 0)}
+• 📝 Meta: {heal_stats.get('meta', 0)}
+• 🔗 DOM: {heal_stats.get('dom', 0)}
+• 💬 Popup: {heal_stats.get('popup', 0)}
+• 📄 Text: {heal_stats.get('text', 0)}
+• 🎭 Dynamic: {heal_stats.get('dynamic', 0)}
 
-async def process_links(update: Update, context):
-    text = update.message.text
+**Link Formats Supported:**
+• HTTPS/HTTP: ✅
+• WWW/No WWW: ✅
+• Direct shortcode: ✅
+
+**Limits:**
+• Max links/request: {MAX_LINKS_PER_REQUEST}
+• Cache TTL: 1 hour
+• Timeout: {REQUEST_TIMEOUT}s
+
+✨ **Bot is fully operational with universal link support!**
+        """
+        await update.message.reply_text(stats_text, parse_mode='Markdown')
     
-    # Extract Instagram URLs
-    pattern = r'https?://(?:www\.)?instagram\.com/(?:reel|p)/[A-Za-z0-9_-]+'
-    links = re.findall(pattern, text)
+    async def cache_info(self, update: Update, context):
+        """Handle /cache command"""
+        info = f"""
+📦 **Cache Information**
+
+{cache.get_stats()}
+
+**Cache TTL:** 1 hour
+**Auto-cleanup:** Enabled
+**Strategy:** LRU (Least Recently Used)
+
+💡 Use /stats for more details
+        """
+        await update.message.reply_text(info, parse_mode='Markdown')
     
-    if not links:
-        await update.message.reply_text(
-            "❌ No Instagram links found.\n\n"
-            "Please send links containing 'instagram.com/reel/' or 'instagram.com/p/'"
+    async def process_links(self, update: Update, context):
+        """Main handler for processing Instagram links - Accepts ANY format"""
+        user = update.effective_user
+        message = update.message
+        text = message.text
+        
+        logger.info(f"User {user.id} sent: {text[:100]}...")
+        
+        # Use universal parser to extract ALL link formats
+        extracted = UniversalLinkParser.extract_links(text)
+        
+        if not extracted:
+            await message.reply_text(
+                "❌ No valid Instagram links found.\n\n"
+                "**Supported formats:**\n"
+                "• `https://www.instagram.com/reel/...`\n"
+                "• `http://instagram.com/p/...`\n"
+                "• `www.instagram.com/reel/...`\n"
+                "• `instagram.com/p/...`\n\n"
+                "**Example:**\n"
+                "`https://www.instagram.com/reel/DXj9g58AuJx`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Get unique links
+        unique_links = []
+        seen_shortcodes = set()
+        for item in extracted:
+            if item['shortcode'] not in seen_shortcodes:
+                seen_shortcodes.add(item['shortcode'])
+                unique_links.append(item)
+        
+        # Limit check
+        if len(unique_links) > MAX_LINKS_PER_REQUEST:
+            await message.reply_text(
+                f"⚠️ Too many links! Maximum {MAX_LINKS_PER_REQUEST} per request.\n"
+                f"You sent {len(unique_links)} links. Please split into multiple messages."
+            )
+            return
+        
+        # Send processing message
+        status_msg = await message.reply_text(
+            f"🔄 **Processing {len(unique_links)} link(s)...**\n\n"
+            f"⏳ Estimated time: {len(unique_links) * 3} seconds\n"
+            f"🔧 Using {len(SelfHealingExtractor.PATTERNS) + 6} extraction methods\n"
+            f"🌐 Universal link parser active\n\n"
+            f"Please wait..."
         )
-        return
-    
-    # Remove duplicates
-    links = list(dict.fromkeys(links))
-    
-    # Limit to 25 links
-    if len(links) > 25:
-        await update.message.reply_text(f"⚠️ Too many links! Processing first 25 out of {len(links)}")
-        links = links[:25]
-    
-    status_msg = await update.message.reply_text(
-        f"🔄 Processing {len(links)} link(s)...\n"
-        f"⏳ Please wait..."
-    )
-    
-    results = []
-    success_count = 0
-    
-    for i, link in enumerate(links):
-        try:
-            if i % 5 == 0 and i > 0:
+        
+        # Process links
+        results = []
+        success_count = 0
+        
+        for i, item in enumerate(unique_links):
+            # Update status periodically
+            if i % 3 == 0 and i > 0:
                 await status_msg.edit_text(
-                    f"🔄 Processing {i+1}/{len(links)}...\n"
-                    f"✅ Found: {success_count} usernames"
+                    f"🔄 **Processing {i+1}/{len(unique_links)}...**\n"
+                    f"✅ Found: {success_count} usernames\n"
+                    f"⏳ Remaining: {len(unique_links) - i}"
                 )
             
-            username = await extract_username(link)
+            # Check cache by shortcode
+            cached = cache.get(item['shortcode'])
             
-            if username:
-                results.append(f"✅ `{link} | {username}`")
+            if cached:
+                results.append(f"📦 `{item['original']} | {cached}`")
                 success_count += 1
-            else:
-                results.append(f"❌ `{link} | Failed to extract username`")
+                logger.info(f"Cache hit for {item['shortcode']}")
+                continue
+            
+            # Extract username
+            try:
+                result = await self.scraper.extract_username(item['normalized_url'])
                 
-        except Exception as e:
-            results.append(f"❌ `{link} | Error: {str(e)[:50]}`")
+                if result['success']:
+                    results.append(f"✅ `{item['original']} | {result['username']}`")
+                    success_count += 1
+                    cache.set(item['shortcode'], result['username'])
+                else:
+                    results.append(f"❌ `{item['original']} | {result['error']}`")
+                
+                # Small delay between requests
+                await asyncio.sleep(1.5)
+                
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+                results.append(f"❌ `{item['original']} | Unexpected error: {str(e)[:50]}`")
         
-        await asyncio.sleep(1)
+        # Format final response
+        success_rate = (success_count / len(unique_links) * 100) if unique_links else 0
+        
+        final_text = "✅ **Extraction Complete!**\n\n"
+        final_text += "\n".join(results[:25])
+        
+        if len(results) > 25:
+            final_text += f"\n\n... and {len(results) - 25} more results"
+        
+        final_text += f"\n\n📊 **Summary:**\n"
+        final_text += f"✅ Success: {success_count}/{len(unique_links)}\n"
+        final_text += f"📈 Success Rate: {success_rate:.1f}%\n"
+        final_text += f"🔧 Methods used: {len([p for p in SelfHealingExtractor.successful_patterns if SelfHealingExtractor.successful_patterns[p] > 0])}\n"
+        
+        if success_rate < 50:
+            final_text += f"\n💡 **Tip:** Try public accounts for better results!"
+        elif success_rate >= 90:
+            final_text += f"\n⭐ **Excellent!** Your links are working perfectly!"
+        
+        await status_msg.edit_text(final_text, parse_mode='Markdown')
     
-    final_text = "✅ **Done!**\n\n" + "\n".join(results[:30])
+    async def button_callback(self, update: Update, context):
+        """Handle inline button callbacks"""
+        query = update.callback_query
+        await query.answer()
+        
+        if query.data == "stats":
+            await self.stats(update, context)
+        elif query.data == "cache":
+            await self.cache_info(update, context)
+        elif query.data == "help":
+            await self.help(update, context)
     
-    if len(results) > 30:
-        final_text += f"\n\n... and {len(results)-30} more results"
+    async def error_handler(self, update: Update, context):
+        """Global error handler"""
+        logger.error(f"Update {update} caused error {context.error}")
+        if update and update.effective_message:
+            await update.effective_message.reply_text(
+                "⚠️ An unexpected error occurred. Please try again or contact support."
+            )
     
-    final_text += f"\n\n📊 **Summary:** ✅ Success: {success_count} | ❌ Failed: {len(links)-success_count}"
-    
-    await status_msg.edit_text(final_text, parse_mode='Markdown')
+    async def run(self):
+        """Start the bot"""
+        # Create application
+        app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        
+        # Add handlers
+        app.add_handler(CommandHandler("start", self.start))
+        app.add_handler(CommandHandler("help", self.help))
+        app.add_handler(CommandHandler("stats", self.stats))
+        app.add_handler(CommandHandler("cache", self.cache_info))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.process_links))
+        app.add_handler(CallbackQueryHandler(self.button_callback))
+        app.add_error_handler(self.error_handler)
+        
+        # Start bot
+        logger.info("🚀 Bot is starting...")
+        logger.info(f"📱 Bot username: @ReelScrapper_bot")
+        logger.info(f"⚙️ Max links: {MAX_LINKS_PER_REQUEST}")
+        logger.info(f"🔄 Extraction methods: {len(SelfHealingExtractor.PATTERNS) + 6}")
+        logger.info(f"🌐 Universal link parser: ACTIVE")
+        
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling()
+        
+        logger.info("✅ Bot is running and ready!")
+        logger.info("📝 Accepts ALL Instagram link formats!")
+        
+        # Keep running
+        try:
+            await asyncio.Event().wait()
+        except KeyboardInterrupt:
+            logger.info("Shutting down...")
+            await self.scraper.close()
+            await app.stop()
 
-def main():
-    app = Application.builder().token(TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("stats", stats))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_links))
-    
-    print("🤖 Bot is starting...")
-    print(f"📱 Bot username: @ReelScrapper_bot")
-    print("✅ Bot is running!")
-    
-    app.run_polling()
+# ============ MAIN ============
+async def main():
+    bot = InstagramBot()
+    await bot.run()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
