@@ -1,25 +1,16 @@
-FROM ubuntu:22.04
+FROM mcr.microsoft.com/playwright/python:v1.40.0-focal
+
 WORKDIR /app
 
-# Install Python and dependencies
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    wget \
-    gnupg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Playwright and browsers
-RUN pip3 install playwright
-RUN playwright install chromium
-RUN playwright install-deps
-
-# Copy and install Python requirements
+# Copy requirements and install
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy bot code
 COPY bot.py .
 
-# Run bot
-CMD ["python3", "-u", "bot.py"]
+# Create necessary directories
+RUN mkdir -p /app/logs /app/cache
+
+# Run bot with unbuffered output
+CMD ["python", "-u", "bot.py"]
